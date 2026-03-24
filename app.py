@@ -40,7 +40,6 @@ if 'target_coins' not in st.session_state:
     st.session_state.target_coins = saved_coins if saved_coins else ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE']
 
 # 상단 타이틀 (문구 삭제 및 심플하게 유지)
-st.title("🌐 Multi-Asset Calc")
 
 # --- [3] 계산 기준 설정 (상단 고정) ---
 with st.container():
