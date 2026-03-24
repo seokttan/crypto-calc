@@ -20,7 +20,7 @@ class CffiSession:
 custom_session = CffiSession()
 
 # --- [2] 데이터 로드 함수 (캐싱 적용) ---
-@st.cache_data(ttl=3600) # 환율은 1시간만 유지
+@st.cache_data(ttl=1) # 환율은 1시간만 유지
 def get_exchange_rate():
     try:
         # yfinance 대신 직접 Yahoo Finance 데이터 페이지나 고정 API 호출
