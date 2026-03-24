@@ -20,16 +20,24 @@ class CffiSession:
 custom_session = CffiSession()
 
 # --- [2] 데이터 로드 함수 (캐싱 적용) ---
-@st.cache_data(ttl=3600) # 환율은 1시간마다 갱신 (차단 방지)
+@st.cache_data(ttl=3600) # 환율은 1시간만 유지
 def get_exchange_rate():
     try:
-        # curl_cffi 세션을 사용하여 Yahoo Finance 호출
-        data = yf.download("USDKRW=X", period="1d", interval="1m", session=custom_session, progress=False)
-        if not data.empty:
-            return float(data['Close'].iloc[-1])
-        return 1400.0
-    except:
-        return 1400.0
+        # yfinance 대신 직접 Yahoo Finance 데이터 페이지나 고정 API 호출
+        # 방법 1: 가장 안정적인 인베스팅/야후 데이터 직접 요청 (curl_cffi 사용)
+        url = "https://query1.finance.yahoo.com/v8/finance/chart/USDKRW=X?interval=1m&range=1d"
+        
+        # 브라우저인 척 위장하여 호출
+        r = requests_cffi.Session(impersonate="chrome").get(url)
+        data = r.json()
+        
+        # JSON 데이터에서 최신 종가 추출
+        price = data['chart']['result'][0]['meta']['regularMarketPrice']
+        return float(price)
+    except Exception as e:
+        # 에러 발생 시 로그 출력 및 기본값 반환
+        st.error(f"환율 로드 실패: {e}")
+        return 1400.0 # 실패 시 최근 평균 환율로 대체
 
 def get_lbank_prices(coins):
     try:
