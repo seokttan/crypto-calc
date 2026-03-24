@@ -78,7 +78,7 @@ for coin in st.session_state.target_coins:
         data.append([coin, "N/A", "N/A", "0.000000"])
 
 df = pd.DataFrame(data, columns=["자산", "시세(USDT)", "시세(KRW)", "보유(계산)수량"])
-st.table(df)
+st.dataframe(df, use_container_width=True, hide_index=True)
 
 # 5. 자산 관리 (쿠키 저장 로직 포함)
 with st.expander("⚙️ 자산 관리 (브라우저에 저장됨)"):
