@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from streamlit_cookies_controller import CookieController
 from curl_cffi import requests as requests_cffi
 
-# --- [1] 설정 및 쿠키 초기화 ---
+# --- [1] 설정 및 데이터 로직 ---
 controller = CookieController()
 
 @st.cache_data(ttl=3600)
@@ -15,8 +15,7 @@ def get_exchange_rate():
         url = "https://query1.finance.yahoo.com/v8/finance/chart/USDKRW=X?interval=1m&range=1d"
         r = requests_cffi.Session(impersonate="chrome").get(url, timeout=5)
         data = r.json()
-        price = data['chart']['result'][0]['meta']['regularMarketPrice']
-        return float(price)
+        return float(data['chart']['result'][0]['meta']['regularMarketPrice'])
     except:
         return 1425.0
 
@@ -31,7 +30,7 @@ def get_lbank_prices(coins):
         return {coin: 0.0 for coin in coins}
 
 # --- [2] UI 설정 ---
-st.set_page_config(page_title="Asset Intelligence", layout="centered")
+st.set_page_config(page_title="Flash Calc", layout="centered")
 
 if 'target_coins' not in st.session_state:
     saved_coins = controller.get('my_target_coins')
@@ -42,23 +41,39 @@ st.title("🌐 Multi-Asset Calc")
 # --- [3] 기준 설정 (상단 고정) ---
 c1, c2 = st.columns([1, 2])
 with c1:
-    base_asset = st.selectbox("기준 자산", ["KRW", "USDT"] + st.session_state.target_coins, key="main_base_asset")
+    base_asset = st.selectbox("기준 자산", ["KRW", "USDT"] + st.session_state.target_coins)
 with c2:
-    default_val = 1000000.0 if base_asset == "KRW" else 1.0
-    input_val = st.number_input("수량/금액 입력", min_value=0.0, value=default_val, step=1.0, key="main_input_val")
+    input_val = st.number_input("수량/금액 입력", min_value=0.0, value=1000000.0 if base_asset=="KRW" else 1.0)
 
 st.divider()
 
-# --- [4] 실시간 업데이트 영역 (Fragment) ---
-# 테이블 전체를 리셋하지 않고 데이터프레임의 내용만 업데이트합니다.
-@st.fragment(run_every=1)
-def update_results():
+# --- [4] 실시간 업데이트 영역 (HTML/JS 기반) ---
+# 이 부분은 st.empty()를 하나만 써서 HTML 테이블을 통째로 업데이트합니다.
+display_area = st.empty()
+
+# --- [5] 자산 리스트 편집 (최하단 고정) ---
+def render_footer_editor():
+    with st.expander("⚙️ 내 자산 리스트 편집"):
+        add_col, del_col = st.columns(2)
+        with add_col:
+            new_coin = st.text_input("추가할 심볼", key="add_coin").upper().strip()
+            if st.button("추가"):
+                if new_coin and new_coin not in st.session_state.target_coins:
+                    st.session_state.target_coins.append(new_coin)
+                    controller.set('my_target_coins', st.session_state.target_coins, max_age=31536000)
+                    st.rerun()
+        with del_col:
+            del_coin = st.selectbox("삭제할 코인", st.session_state.target_coins, key="del_coin")
+            if st.button("삭제"):
+                st.session_state.target_coins.remove(del_coin)
+                controller.set('my_target_coins', st.session_state.target_coins, max_age=31536000)
+                st.rerun()
+
+# --- [6] 무한 루프 (HTML 렌더링) ---
+while True:
     usd_to_krw = get_exchange_rate()
     coin_prices = get_lbank_prices(st.session_state.target_coins)
-    kor_now = datetime.utcnow() + timedelta(hours=9)
-    
-    # 캡션에 시간과 환율 표시
-    st.caption(f"KST {kor_now.strftime('%H:%M:%S')} | 환율 ₩ {usd_to_krw:,.2f}")
+    kor_now = (datetime.utcnow() + timedelta(hours=9)).strftime('%H:%M:%S')
 
     # 계산 로직
     if base_asset == "KRW":
@@ -69,49 +84,42 @@ def update_results():
         p_u = coin_prices.get(base_asset, 0.0)
         base_usdt = input_val * p_u if p_u > 0 else 0.0
 
-    # 데이터 생성
-    data = [
-        {"자산명": "KRW", "시세(KRW)": "₩ 1.00", "보유수량": f"{base_usdt * usd_to_krw:,.0f}"},
-        {"자산명": "USDT", "시세(KRW)": f"₩ {usd_to_krw:,.2f}", "보유수량": f"{base_usdt:,.2f}"}
-    ]
-    
+    # HTML 테이블 생성 (CSS로 깔끔하게 디자인)
+    rows_html = f"""
+    <tr style="border-bottom: 1px solid #ddd;"><td>KRW</td><td>₩ 1.00</td><td>{base_usdt * usd_to_krw:,.0f}</td></tr>
+    <tr style="border-bottom: 1px solid #ddd;"><td>USDT</td><td>₩ {usd_to_krw:,.2f}</td><td>{base_usdt:,.2f}</td></tr>
+    """
     for coin in st.session_state.target_coins:
         p_u = coin_prices.get(coin, 0.0)
-        p_k = p_u * usd_to_krw
         qty = base_usdt / p_u if p_u > 0 else 0.0
-        data.append({"자산명": coin, "시세(KRW)": f"₩ {p_k:,.2f}", "보유수량": f"{qty:,.6f}"})
+        rows_html += f"""
+        <tr style="border-bottom: 1px solid #ddd;">
+            <td>{coin}</td>
+            <td>₩ {p_u * usd_to_krw:,.2f}</td>
+            <td style="font-weight: bold; color: #007bff;">{qty:,.6f}</td>
+        </tr>
+        """
 
-    # [핵심] st.dataframe 대신 st.data_editor를 사용하여 인덱스를 숨기고 
-    # 데이터만 업데이트되는 연출을 합니다 (수정은 불가능하게 disabled 처리)
-    df = pd.DataFrame(data)
-    st.dataframe(
-        df, 
-        use_container_width=True, 
-        hide_index=True,
-        column_config={
-            "자산명": st.column_config.TextColumn("자산명"),
-            "시세(KRW)": st.column_config.TextColumn("시세(KRW)"),
-            "보유수량": st.column_config.TextColumn("보유수량")
-        }
-    )
-
-update_results()
-
-# --- [5] 자산 리스트 편집 (최하단 고정) ---
-st.write("") 
-with st.expander("⚙️ 내 자산 리스트 편집 (쿠키 저장)"):
-    add_col, del_col = st.columns(2)
-    with add_col:
-        new_coin = st.text_input("추가할 코인 심볼 (예: SOL)", key="add_input").upper().strip()
-        if st.button("추가", key="btn_add"):
-            if new_coin and new_coin not in st.session_state.target_coins:
-                st.session_state.target_coins.append(new_coin)
-                controller.set('my_target_coins', st.session_state.target_coins, max_age=31536000)
-                st.rerun()
-    with del_col:
-        if st.session_state.target_coins:
-            del_coin = st.selectbox("삭제할 코인 선택", st.session_state.target_coins, key="del_select")
-            if st.button("삭제", key="btn_del"):
-                st.session_state.target_coins.remove(del_coin)
-                controller.set('my_target_coins', st.session_state.target_coins, max_age=31536000)
-                st.rerun()
+    html_content = f"""
+    <div style="font-family: sans-serif;">
+        <p style="color: gray; font-size: 0.8rem;">KST {kor_now} | 환율 ₩ {usd_to_krw:,.2f}</p>
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="background-color: #f8f9fa; border-bottom: 2px solid #eee;">
+                    <th style="padding: 10px;">자산명</th><th style="padding: 10px;">시세(KRW)</th><th style="padding: 10px;">계산수량</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows_html}
+            </tbody>
+        </table>
+    </div>
+    """
+    
+    # st.markdown의 unsafe_allow_html을 사용하면 깜빡임 없이 텍스트만 교체됩니다.
+    display_area.markdown(html_content, unsafe_allow_html=True)
+    
+    # 편집창 렌더링 (루프 안에서 매번 그려도 마크다운 아래에 위치함)
+    render_footer_editor()
+    
+    time.sleep(1)
