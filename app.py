@@ -38,7 +38,6 @@ else:
 if 'target_coins' not in st.session_state:
     st.session_state.target_coins = initial_coins
 
-st.title("🌐 Multi-Asset Calc")
 st.caption(f"브라우저 쿠키 기반 저장 기능 활성화 | {time.strftime('%H:%M:%S')}")
 
 # 1. 시장 데이터 로드
