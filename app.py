@@ -37,7 +37,6 @@ if 'target_coins' not in st.session_state:
     st.session_state.target_coins = saved_coins if saved_coins else ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE']
 
 # --- [3] 고정 레이아웃 (상단) ---
-st.title("💰 실시간 자산 계산기")
 
 with st.container():
     st.subheader("계산 기준 설정")
@@ -62,7 +61,7 @@ st.divider()
 edit_area = st.empty()
 
 # --- [5] 편집창 구현 (루프 밖에서 한 번만 실행) ---
-with edit_area.expander("⚙️ 내 자산 리스트 편집 (하나만 표시됨)"):
+with edit_area.expander("⚙️ 내 자산 리스트 편집"):
     add_col, del_col = st.columns(2)
     with add_col:
         new_coin = st.text_input("추가할 코인 심볼", key="input_new").upper().strip()
