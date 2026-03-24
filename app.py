@@ -4,10 +4,11 @@ import yfinance as yf
 import pandas as pd
 import time
 from streamlit_cookies_controller import CookieController
-
+from datetime import datetime, timedelta
 # --- 쿠키 컨트롤러 초기화 ---
 controller = CookieController()
-
+now_utc = datetime.utcnow()
+kor_time = now_utc + timedelta(hours=9)
 # --- 데이터 가져오기 함수 ---
 @st.cache_data(ttl=60)
 def get_market_data(coins):
@@ -38,8 +39,7 @@ else:
 if 'target_coins' not in st.session_state:
     st.session_state.target_coins = initial_coins
 
-st.caption(f"브라우저 쿠키 기반 저장 기능 활성화 | {time.strftime('%H:%M:%S')}")
-
+st.caption(f"최신 업데이트: {kor_time.strftime('%H:%M:%S')} (한국 시간 기준)")
 # 1. 시장 데이터 로드
 usd_to_krw, coin_prices = get_market_data(st.session_state.target_coins)
 st.metric("실시간 환율 (USD/KRW)", f"₩ {usd_to_krw:,.2f}")
