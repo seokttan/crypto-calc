@@ -1,0 +1,5 @@
+streamlit
+requests
+yfinance
+pandas
+streamlit-cookies-controller
