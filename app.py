@@ -149,4 +149,3 @@ while True:
         df = pd.DataFrame(data, columns=["자산명", "개당 시세(KRW)", "환산 수량"])
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-    time.sleep(2)
