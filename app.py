@@ -10,6 +10,9 @@ from curl_cffi import requests as requests_cffi
 st.set_page_config(page_title="Real-time Asset Sync", layout="wide")
 controller = CookieController()
 
+# 관리자 비밀번호 설정 (원하는 비밀번호로 수정하세요)
+ADMIN_PASSWORD = "1234"
+
 @st.cache_data(ttl=60)
 def get_exchange_rate():
     try:
@@ -31,7 +34,7 @@ def get_lbank_prices(coins):
     except:
         return {coin: 0.0 for coin in coins}
 
-# 숫자를 깔끔하게 포맷팅하는 함수 (불필요한 0 제거)
+# 숫자를 깔끔하게 포맷팅하는 함수
 def format_num(val, precision=6):
     if val == 0: return "0"
     return f"{val:,.{precision}f}".rstrip('0').rstrip('.')
@@ -50,17 +53,16 @@ with st.container():
         base_asset = st.selectbox("보유 중인 기준 자산", options)
     with c2:
         default_val = 1000000.0 if base_asset == "KRW" else 1.0
-        # 입력창은 사용자가 직접 타이핑하므로 %g 포맷 사용
         input_val = st.number_input(f"{base_asset} 수량/금액 입력", min_value=0.0, value=default_val, step=0.1, format="%g")
 
 st.divider()
 
-# --- [4] 영역 확보 ---
+# --- [4] 결과 영역 확보 ---
 result_area = st.empty()
 st.write("") 
 st.divider()
 
-# --- [5] 추가 기능: 간편 계산기 & 편집창 ---
+# --- [5] 하단 도구: 간편 계산기 & 편집창 (비밀번호 보호) ---
 col_calc, col_edit = st.columns(2)
 
 with col_calc:
@@ -77,30 +79,39 @@ with col_calc:
         
         st.info(f"결과: {format_num(res)}")
 
-
 with col_edit:
     with st.expander("⚙️ 내 자산 리스트 편집", expanded=False):
-        add_col, del_col = st.columns(2)
-        with add_col:
-            new_coin = st.text_input("추가할 코인 심볼", key="input_new").upper().strip()
-            if st.button("추가", use_container_width=True):
-                if new_coin:
-                    check_price = get_lbank_prices([new_coin])
-                    if check_price.get(new_coin, 0.0) > 0:
-                        if new_coin not in st.session_state.target_coins:
-                            st.session_state.target_coins.append(new_coin)
-                            controller.set('my_target_coins', st.session_state.target_coins, max_age=31536000)
-                            st.rerun()
-                        else: st.warning("이미 존재합니다.")
-                    else: st.error("심볼 확인 불가")
+        # 비밀번호 입력 확인
+        input_pw = st.text_input("관리자 비밀번호", type="password", placeholder="비밀번호를 입력하세요")
         
-        with del_col:
-            if st.session_state.target_coins:
-                del_target = st.selectbox("삭제 선택", st.session_state.target_coins)
-                if st.button("삭제", use_container_width=True):
-                    st.session_state.target_coins.remove(del_target)
-                    controller.set('my_target_coins', st.session_state.target_coins, max_age=31536000)
-                    st.rerun()
+        if input_pw == ADMIN_PASSWORD:
+            st.success("인증 완료: 자산을 편집할 수 있습니다.")
+            add_col, del_col = st.columns(2)
+            
+            with add_col:
+                new_coin = st.text_input("추가할 코인 심볼", key="input_new", placeholder="예: PEPE").upper().strip()
+                if st.button("추가", use_container_width=True):
+                    if new_coin:
+                        check_price = get_lbank_prices([new_coin])
+                        if check_price.get(new_coin, 0.0) > 0:
+                            if new_coin not in st.session_state.target_coins:
+                                st.session_state.target_coins.append(new_coin)
+                                controller.set('my_target_coins', st.session_state.target_coins, max_age=31536000)
+                                st.rerun()
+                            else: st.warning("이미 존재합니다.")
+                        else: st.error("LBank에 해당 심볼이 없거나 가격을 불러올 수 없습니다.")
+            
+            with del_col:
+                if st.session_state.target_coins:
+                    del_target = st.selectbox("삭제 선택", st.session_state.target_coins)
+                    if st.button("삭제", use_container_width=True):
+                        st.session_state.target_coins.remove(del_target)
+                        controller.set('my_target_coins', st.session_state.target_coins, max_age=31536000)
+                        st.rerun()
+        elif input_pw != "":
+            st.error("비밀번호가 일치하지 않습니다.")
+        else:
+            st.info("편집하려면 관리자 비밀번호를 입력해 주세요.")
 
 # --- [6] 실시간 업데이트 루프 ---
 while True:
@@ -112,6 +123,7 @@ while True:
         st.caption(f"Last Update: {kor_now.strftime('%H:%M:%S')}")
         st.metric("현재 환율 (USDKRW)", f"₩ {usd_to_krw:,.2f}")
         
+        # 기준 자산을 USDT로 환산
         if base_asset == "KRW":
             base_usdt = input_val / usd_to_krw
         elif base_asset == "USDT":
@@ -132,7 +144,6 @@ while True:
             qty = base_usdt / p_u if p_u > 0 else 0.0
             
             if p_u > 0:
-                # 수량 표시에서 불필요한 0 제거 적용
                 data.append([f"🪙 {coin}", f"₩ {p_k:,.2f}", f"{format_num(qty)} {coin}"])
 
         df = pd.DataFrame(data, columns=["자산명", "개당 시세(KRW)", "환산 수량"])
