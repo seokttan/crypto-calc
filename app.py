@@ -76,9 +76,7 @@ with col_calc:
         elif op == "÷": res = calc_n1 / calc_n2 if calc_n2 != 0 else 0
         
         st.info(f"결과: {format_num(res)}")
-        if st.button("결과에 현재 환율 적용 (KRW 보기)"):
-            current_rate = get_exchange_rate()
-            st.success(f"₩ {res * current_rate:,.0f}")
+
 
 with col_edit:
     with st.expander("⚙️ 내 자산 리스트 편집", expanded=False):
