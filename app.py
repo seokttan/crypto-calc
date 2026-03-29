@@ -31,6 +31,11 @@ def get_lbank_prices(coins):
     except:
         return {coin: 0.0 for coin in coins}
 
+# 숫자를 깔끔하게 포맷팅하는 함수 (불필요한 0 제거)
+def format_num(val, precision=6):
+    if val == 0: return "0"
+    return f"{val:,.{precision}f}".rstrip('0').rstrip('.')
+
 # --- [2] 데이터 로드 (쿠키 및 세션) ---
 if 'target_coins' not in st.session_state:
     saved_coins = controller.get('my_target_coins')
@@ -45,7 +50,8 @@ with st.container():
         base_asset = st.selectbox("보유 중인 기준 자산", options)
     with c2:
         default_val = 1000000.0 if base_asset == "KRW" else 1.0
-        input_val = st.number_input(f"{base_asset} 수량/금액 입력", min_value=0.0, value=default_val, step=0.1, format="%.6f")
+        # 입력창은 사용자가 직접 타이핑하므로 %g 포맷 사용
+        input_val = st.number_input(f"{base_asset} 수량/금액 입력", min_value=0.0, value=default_val, step=0.1, format="%g")
 
 st.divider()
 
@@ -59,8 +65,8 @@ col_calc, col_edit = st.columns(2)
 
 with col_calc:
     with st.expander("🧮 간편 계산기", expanded=False):
-        calc_n1 = st.number_input("숫자 1", value=0.0, format="%.6f", key="n1")
-        calc_n2 = st.number_input("숫자 2", value=0.0, format="%.6f", key="n2")
+        calc_n1 = st.number_input("숫자 1", value=0.0, format="%g", key="n1")
+        calc_n2 = st.number_input("숫자 2", value=0.0, format="%g", key="n2")
         op = st.radio("연산", ["+", "-", "×", "÷"], horizontal=True)
         
         res = 0.0
@@ -69,7 +75,7 @@ with col_calc:
         elif op == "×": res = calc_n1 * calc_n2
         elif op == "÷": res = calc_n1 / calc_n2 if calc_n2 != 0 else 0
         
-        st.info(f"결과: {res:,.6f}")
+        st.info(f"결과: {format_num(res)}")
         if st.button("결과에 현재 환율 적용 (KRW 보기)"):
             current_rate = get_exchange_rate()
             st.success(f"₩ {res * current_rate:,.0f}")
@@ -118,8 +124,8 @@ while True:
 
         # 데이터프레임 구성
         data = [
-            ["🇰🇷 KRW (현금)", f"₩ 1.00", f"₩ {base_usdt * usd_to_krw:,.0f}"],
-            ["🇺🇸 USDT (테더)", f"₩ {usd_to_krw:,.2f}", f"{base_usdt:,.2f} USDT"]
+            ["🇰🇷 KRW (현금)", f"₩ 1.00", f"₩ {format_num(base_usdt * usd_to_krw, 0)}"],
+            ["🇺🇸 USDT (테더)", f"₩ {usd_to_krw:,.2f}", f"{format_num(base_usdt)} USDT"]
         ]
         
         for coin in st.session_state.target_coins:
@@ -128,9 +134,10 @@ while True:
             qty = base_usdt / p_u if p_u > 0 else 0.0
             
             if p_u > 0:
-                data.append([f"🪙 {coin}", f"₩ {p_k:,.2f}", f"{qty:,.6f} {coin}"])
+                # 수량 표시에서 불필요한 0 제거 적용
+                data.append([f"🪙 {coin}", f"₩ {p_k:,.2f}", f"{format_num(qty)} {coin}"])
 
         df = pd.DataFrame(data, columns=["자산명", "개당 시세(KRW)", "환산 수량"])
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-    time.sleep(2) # 서버 부하 감소를 위해 2초로 조정
+    time.sleep(2)
