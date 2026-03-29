@@ -91,6 +91,24 @@ with edit_area.expander("⚙️ 내 자산 리스트 편집"):
                 st.warning(f"🗑️ {del_target} 삭제됨")
                 time.sleep(0.5)
                 st.rerun()
+with st.expander("🧮 간편 계산기"):
+    calc_col1, calc_col2 = st.columns(2)
+    
+    with calc_col1:
+        st.markdown("**수치 입력**")
+        num1 = st.number_input("숫자 1", value=0.0, format="%.6f", key="calc_n1")
+        num2 = st.number_input("숫자 2", value=0.0, format="%.6f", key="calc_n2")
+        op = st.radio("연산 선택", ["+", "-", "×", "÷"], horizontal=True)
+        
+    with calc_col2:
+        st.markdown("**계산 결과**")
+        res = 0.0
+        if op == "+": res = num1 + num2
+        elif op == "-": res = num1 - num2
+        elif op == "×": res = num1 * num2
+        elif op == "÷": res = num1 / num2 if num2 != 0 else 0
+        
+        st.code(f"결과: {res:,.6f}", language="text")
 
 # --- [6] 실시간 업데이트 루프 ---
 while True:
