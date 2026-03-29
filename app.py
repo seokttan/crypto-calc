@@ -37,8 +37,6 @@ if 'target_coins' not in st.session_state:
     st.session_state.target_coins = saved_coins if saved_coins else ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE']
 
 # --- [3] 상단 고정 레이아웃 (입력창) ---
-# 타이틀 제거됨
-
 with st.container():
     st.subheader("계산 기준 설정")
     c1, c2 = st.columns([1, 2])
@@ -55,60 +53,50 @@ st.divider()
 result_area = st.empty()
 st.write("") 
 st.divider()
-edit_area = st.empty()
 
-# --- [5] 편집창 구현 (문구 수정됨) ---
-with edit_area.expander("⚙️ 내 자산 리스트 편집"):
-    add_col, del_col = st.columns(2)
-    
-    with add_col:
-        new_coin = st.text_input("추가할 코인 심볼 (예: BTC)", key="input_new").upper().strip()
-        if st.button("목록에 추가", use_container_width=True):
-            if new_coin:
-                with st.spinner(f'확인 중...'):
-                    check_price = get_lbank_prices([new_coin])
-                
-                if check_price.get(new_coin, 0.0) > 0:
-                    if new_coin not in st.session_state.target_coins:
-                        st.session_state.target_coins.append(new_coin)
-                        controller.set('my_target_coins', st.session_state.target_coins, max_age=31536000)
-                        st.success(f"✅ {new_coin} 추가 완료")
-                        time.sleep(0.5)
-                        st.rerun()
-                    else:
-                        st.warning("이미 목록에 있는 코인입니다.")
-                else:
-                    st.error(f"❌ '{new_coin}'은(는) 존재하지 않는 심볼입니다.")
-            else:
-                st.info("코인 심볼을 입력해주세요.")
+# --- [5] 추가 기능: 간편 계산기 & 편집창 ---
+col_calc, col_edit = st.columns(2)
 
-    with del_col:
-        if st.session_state.target_coins:
-            del_target = st.selectbox("삭제할 코인 선택", st.session_state.target_coins, key="select_del")
-            if st.button("목록에서 삭제", use_container_width=True):
-                st.session_state.target_coins.remove(del_target)
-                controller.set('my_target_coins', st.session_state.target_coins, max_age=31536000)
-                st.warning(f"🗑️ {del_target} 삭제됨")
-                time.sleep(0.5)
-                st.rerun()
-with st.expander("🧮 간편 계산기"):
-    calc_col1, calc_col2 = st.columns(2)
-    
-    with calc_col1:
-        st.markdown("**수치 입력**")
-        num1 = st.number_input("숫자 1", value=0.0, format="%.6f", key="calc_n1")
-        num2 = st.number_input("숫자 2", value=0.0, format="%.6f", key="calc_n2")
-        op = st.radio("연산 선택", ["+", "-", "×", "÷"], horizontal=True)
+with col_calc:
+    with st.expander("🧮 간편 계산기", expanded=False):
+        calc_n1 = st.number_input("숫자 1", value=0.0, format="%.6f", key="n1")
+        calc_n2 = st.number_input("숫자 2", value=0.0, format="%.6f", key="n2")
+        op = st.radio("연산", ["+", "-", "×", "÷"], horizontal=True)
         
-    with calc_col2:
-        st.markdown("**계산 결과**")
         res = 0.0
-        if op == "+": res = num1 + num2
-        elif op == "-": res = num1 - num2
-        elif op == "×": res = num1 * num2
-        elif op == "÷": res = num1 / num2 if num2 != 0 else 0
+        if op == "+": res = calc_n1 + calc_n2
+        elif op == "-": res = calc_n1 - calc_n2
+        elif op == "×": res = calc_n1 * calc_n2
+        elif op == "÷": res = calc_n1 / calc_n2 if calc_n2 != 0 else 0
         
-        st.code(f"결과: {res:,.6f}", language="text")
+        st.info(f"결과: {res:,.6f}")
+        if st.button("결과에 현재 환율 적용 (KRW 보기)"):
+            current_rate = get_exchange_rate()
+            st.success(f"₩ {res * current_rate:,.0f}")
+
+with col_edit:
+    with st.expander("⚙️ 내 자산 리스트 편집", expanded=False):
+        add_col, del_col = st.columns(2)
+        with add_col:
+            new_coin = st.text_input("추가할 코인 심볼", key="input_new").upper().strip()
+            if st.button("추가", use_container_width=True):
+                if new_coin:
+                    check_price = get_lbank_prices([new_coin])
+                    if check_price.get(new_coin, 0.0) > 0:
+                        if new_coin not in st.session_state.target_coins:
+                            st.session_state.target_coins.append(new_coin)
+                            controller.set('my_target_coins', st.session_state.target_coins, max_age=31536000)
+                            st.rerun()
+                        else: st.warning("이미 존재합니다.")
+                    else: st.error("심볼 확인 불가")
+        
+        with del_col:
+            if st.session_state.target_coins:
+                del_target = st.selectbox("삭제 선택", st.session_state.target_coins)
+                if st.button("삭제", use_container_width=True):
+                    st.session_state.target_coins.remove(del_target)
+                    controller.set('my_target_coins', st.session_state.target_coins, max_age=31536000)
+                    st.rerun()
 
 # --- [6] 실시간 업데이트 루프 ---
 while True:
@@ -117,9 +105,7 @@ while True:
         coin_prices = get_lbank_prices(st.session_state.target_coins)
         kor_now = datetime.utcnow() + timedelta(hours=9)
         
-        st.caption(f"Update: {kor_now.strftime('%H:%M:%S')}")
-        
-        # 환율 메트릭만 유지 (총 가치 USDT 제거됨)
+        st.caption(f"Last Update: {kor_now.strftime('%H:%M:%S')}")
         st.metric("현재 환율 (USDKRW)", f"₩ {usd_to_krw:,.2f}")
         
         if base_asset == "KRW":
@@ -147,4 +133,4 @@ while True:
         df = pd.DataFrame(data, columns=["자산명", "개당 시세(KRW)", "환산 수량"])
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-    time.sleep(1)
+    time.sleep(2) # 서버 부하 감소를 위해 2초로 조정
